@@ -15,6 +15,19 @@
   height: 24px;
 }
 
+.kiroIcon {
+  width: 24px;
+  height: 24px;
+  border-radius: $radius-sm;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #5b4b8a;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+}
+
 .pageTitle {
   font-size: 28px;
   font-weight: 700;
@@ -149,6 +162,97 @@
   flex-wrap: wrap;
   align-items: center;
   gap: $spacing-sm;
+}
+
+.cardActions,
+.inlineActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: $spacing-sm;
+}
+
+.kiroFormGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: $spacing-md;
+}
+
+.kiroSecretGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: $spacing-md;
+}
+
+.tokenTextarea,
+.jsonTextarea {
+  min-height: 88px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.jsonTextarea {
+  min-height: 120px;
+}
+
+.kiroTokenHeader {
+  padding-top: $spacing-sm;
+  border-top: 1px solid var(--border-color);
+}
+
+.kiroTokenList {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-md;
+}
+
+.kiroTokenItem {
+  border: 1px solid var(--border-color);
+  border-radius: $radius-md;
+  padding: $spacing-md;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-sm;
+}
+
+.kiroTokenMain {
+  display: flex;
+  justify-content: space-between;
+  gap: $spacing-md;
+  align-items: flex-start;
+
+  @include mobile {
+    flex-direction: column;
+  }
+}
+
+.kiroTokenEmail {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 700;
+  word-break: break-all;
+}
+
+.kiroTokenMeta {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.kiroBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $spacing-xs;
+  justify-content: flex-end;
+
+  :global(.status-badge) {
+    margin-bottom: 0;
+  }
+
+  @include mobile {
+    justify-content: flex-start;
+  }
 }
 
 .geminiProjectField {
