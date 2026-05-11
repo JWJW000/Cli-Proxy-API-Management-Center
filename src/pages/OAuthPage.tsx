@@ -300,6 +300,9 @@ export function OAuthPage() {
   const completeProviderAuth = (provider: OAuthProvider) => {
     clearPollingTimer(provider);
     clearSuccessResetTimer(provider);
+    if (provider === 'kiro') {
+      void loadKiroTokens(true);
+    }
     updateProviderState(provider, {
       url: undefined,
       state: undefined,
