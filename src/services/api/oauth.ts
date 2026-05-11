@@ -15,6 +15,7 @@ export type OAuthProvider =
 export interface OAuthStartResponse {
   url: string;
   state?: string;
+  user_code?: string;
 }
 
 export interface OAuthCallbackResponse {
@@ -28,7 +29,10 @@ const CALLBACK_PROVIDER_MAP: Partial<Record<OAuthProvider, string>> = {
 };
 
 export const oauthApi = {
-  startAuth: (provider: OAuthProvider, options?: { projectId?: string; startUrl?: string; region?: string }) => {
+  startAuth: (
+    provider: OAuthProvider,
+    options?: { projectId?: string; startUrl?: string; region?: string; authMethod?: 'social' | 'idc' }
+  ) => {
     const params: Record<string, string | boolean> = {};
     if (WEBUI_SUPPORTED.includes(provider)) {
       params.is_webui = true;
@@ -39,6 +43,7 @@ export const oauthApi = {
     if (provider === 'kiro') {
       if (options?.startUrl) params.start_url = options.startUrl;
       if (options?.region) params.region = options.region;
+      if (options?.authMethod) params.auth_method = options.authMethod;
     }
     return apiClient.get<OAuthStartResponse>(`/${provider}-auth-url`, {
       params: Object.keys(params).length ? params : undefined

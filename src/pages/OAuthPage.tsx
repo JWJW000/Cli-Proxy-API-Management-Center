@@ -33,9 +33,11 @@ interface ProviderState {
   polling?: boolean;
   projectId?: string;
   projectIdError?: string;
+  kiroAuthMethod?: KiroAuthMethod;
   kiroStartUrl?: string;
   kiroRegion?: string;
   kiroStartUrlError?: string;
+  userCode?: string;
   callbackUrl?: string;
   callbackSubmitting?: boolean;
   callbackStatus?: 'success' | 'error';
@@ -105,9 +107,9 @@ const PROVIDERS: {
   {
     id: 'kiro',
     titleKey: 'auth_login.kiro_oauth_title',
-    titleDefault: 'Kiro IAM SSO Login',
+    titleDefault: 'Kiro Login',
     hintKey: 'auth_login.kiro_oauth_hint',
-    hintDefault: 'Sign in with AWS IAM Identity Center, then paste the callback URL to save a Kiro token.',
+    hintDefault: 'Personal accounts use AWS Builder ID device login. Organization accounts can use IAM Identity Center.',
     urlLabelKey: 'auth_login.kiro_oauth_url_label',
     urlLabelDefault: 'Kiro authorization URL',
     letterIcon: 'K'
@@ -139,13 +141,13 @@ const getIcon = (icon: string | { light: string; dark: string }, theme: 'light' 
 const authTextDefault = (provider: OAuthProvider, suffix: string) => {
   if (provider !== 'kiro') return undefined;
   const defaults: Record<string, string> = {
-    oauth_button: 'Start Kiro SSO Login',
+    oauth_button: 'Start Kiro Login',
     copy_link: 'Copy link',
     open_link: 'Open link',
     oauth_start_error: 'Failed to start Kiro SSO login.',
     oauth_status_success: 'Kiro token saved.',
     oauth_status_error: 'Kiro login failed.',
-    oauth_status_waiting: 'Waiting for Kiro callback...'
+    oauth_status_waiting: 'Waiting for Kiro authorization...'
   };
   return defaults[suffix];
 };
@@ -284,6 +286,7 @@ export function OAuthPage() {
         next.projectId = current.projectId;
       }
       if (provider === 'kiro') {
+        next.kiroAuthMethod = current.kiroAuthMethod;
         next.kiroStartUrl = current.kiroStartUrl;
         next.kiroRegion = current.kiroRegion;
       }
@@ -304,6 +307,7 @@ export function OAuthPage() {
       error: undefined,
       polling: false,
       callbackUrl: '',
+      userCode: undefined,
       callbackSubmitting: false,
       callbackStatus: undefined,
       callbackError: undefined
@@ -352,13 +356,14 @@ export function OAuthPage() {
         ? 'ALL'
         : rawProjectId
       : undefined;
+    const kiroAuthMethod: KiroAuthMethod = provider === 'kiro' ? (kiroState?.kiroAuthMethod || 'social') : 'social';
     const kiroStartUrl = provider === 'kiro' ? (kiroState?.kiroStartUrl || '').trim() : '';
     const kiroRegion = provider === 'kiro' ? (kiroState?.kiroRegion || 'us-east-1').trim() : undefined;
     // Project ID is optional: blank selects the first available project; ALL fetches every project.
     if (provider === 'gemini-cli') {
       updateProviderState(provider, { projectIdError: undefined });
     }
-    if (provider === 'kiro') {
+    if (provider === 'kiro' && kiroAuthMethod === 'idc') {
       if (!kiroStartUrl) {
         updateProviderState(provider, {
           kiroStartUrlError: t('auth_login.kiro_start_url_required', {
@@ -377,6 +382,7 @@ export function OAuthPage() {
       error: undefined,
       callbackStatus: undefined,
       callbackError: undefined,
+      userCode: undefined,
       callbackUrl: ''
     });
     try {
@@ -385,7 +391,7 @@ export function OAuthPage() {
         provider === 'gemini-cli'
           ? { projectId: projectId || undefined }
           : provider === 'kiro'
-            ? { startUrl: kiroStartUrl, region: kiroRegion || undefined }
+            ? { authMethod: kiroAuthMethod, startUrl: kiroStartUrl, region: kiroRegion || undefined }
             : undefined
       );
       if (!res.state) {
@@ -400,7 +406,13 @@ export function OAuthPage() {
         showNotification(message, 'error');
         return;
       }
-      updateProviderState(provider, { url: res.url, state: res.state, status: 'waiting', polling: true });
+      updateProviderState(provider, {
+        url: res.url,
+        state: res.state,
+        userCode: res.user_code,
+        status: 'waiting',
+        polling: true
+      });
       startPolling(provider, res.state);
     } catch (err: unknown) {
       const message = getErrorMessage(err);
@@ -687,7 +699,10 @@ export function OAuthPage() {
       <div className={styles.content}>
         {PROVIDERS.map((provider) => {
           const state = states[provider.id] || {};
-          const canSubmitCallback = CALLBACK_SUPPORTED.includes(provider.id) && Boolean(state.url);
+          const canSubmitCallback =
+            CALLBACK_SUPPORTED.includes(provider.id) &&
+            Boolean(state.url) &&
+            !(provider.id === 'kiro' && (state.kiroAuthMethod || 'social') === 'social');
           const loginButtonLabel =
             state.status === 'success'
               ? t('auth_login.login_another_account')
@@ -746,6 +761,35 @@ export function OAuthPage() {
                   )}
                   {provider.id === 'kiro' && (
                     <div className={styles.kiroOAuthGrid}>
+                      <div className={styles.formItem}>
+                        <label className={styles.formItemLabel}>
+                          {t('auth_login.kiro_auth_method_label', {
+                            defaultValue: 'Login Type'
+                          })}
+                        </label>
+                        <select
+                          className="input"
+                          value={state.kiroAuthMethod || 'social'}
+                          disabled={Boolean(state.polling)}
+                          onChange={(e) =>
+                            updateProviderState(provider.id, {
+                              kiroAuthMethod: e.target.value as KiroAuthMethod,
+                              kiroStartUrlError: undefined
+                            })
+                          }
+                        >
+                          <option value="social">
+                            {t('auth_login.kiro_auth_method_social', {
+                              defaultValue: 'Personal AWS Builder ID'
+                            })}
+                          </option>
+                          <option value="idc">
+                            {t('auth_login.kiro_auth_method_idc', {
+                              defaultValue: 'Organization IAM SSO'
+                            })}
+                          </option>
+                        </select>
+                      </div>
                       <Input
                         label={t('auth_login.kiro_start_url_label', {
                           defaultValue: 'SSO Start URL'
@@ -755,7 +799,7 @@ export function OAuthPage() {
                         })}
                         value={state.kiroStartUrl || ''}
                         error={state.kiroStartUrlError}
-                        disabled={Boolean(state.polling)}
+                        disabled={Boolean(state.polling) || (state.kiroAuthMethod || 'social') === 'social'}
                         onChange={(e) =>
                           updateProviderState(provider.id, {
                             kiroStartUrl: e.target.value,
@@ -777,6 +821,16 @@ export function OAuthPage() {
                         }
                         placeholder="us-east-1"
                       />
+                    </div>
+                  )}
+                  {provider.id === 'kiro' && state.userCode && (
+                    <div className={styles.kiroDeviceCodeBox}>
+                      <div className={styles.authUrlLabel}>
+                        {t('auth_login.kiro_user_code_label', {
+                          defaultValue: 'Enter this code in the browser'
+                        })}
+                      </div>
+                      <div className={styles.kiroDeviceCode}>{state.userCode}</div>
                     </div>
                   )}
                   {state.url && (
