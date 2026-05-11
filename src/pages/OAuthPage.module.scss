@@ -270,6 +270,29 @@
   }
 }
 
+.kiroOAuthGrid {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(160px, 220px);
+  gap: $spacing-md;
+
+  :global(.form-group) {
+    margin-top: 0;
+    margin-bottom: 0;
+    gap: $spacing-sm;
+  }
+
+  :global(.input:disabled) {
+    background-color: var(--bg-tertiary);
+    border-color: var(--border-color);
+    color: var(--text-tertiary);
+    cursor: not-allowed;
+  }
+
+  @include mobile {
+    grid-template-columns: 1fr;
+  }
+}
+
 .formItem {
   display: flex;
   flex-direction: column;

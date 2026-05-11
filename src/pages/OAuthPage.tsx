@@ -33,6 +33,9 @@ interface ProviderState {
   polling?: boolean;
   projectId?: string;
   projectIdError?: string;
+  kiroStartUrl?: string;
+  kiroRegion?: string;
+  kiroStartUrlError?: string;
   callbackUrl?: string;
   callbackSubmitting?: boolean;
   callbackStatus?: 'success' | 'error';
@@ -83,15 +86,35 @@ function getErrorStatus(error: unknown): number | undefined {
   return typeof error.status === 'number' ? error.status : undefined;
 }
 
-const PROVIDERS: { id: OAuthProvider; titleKey: string; hintKey: string; urlLabelKey: string; icon: string | { light: string; dark: string } }[] = [
+const PROVIDERS: {
+  id: OAuthProvider;
+  titleKey: string;
+  titleDefault?: string;
+  hintKey: string;
+  hintDefault?: string;
+  urlLabelKey: string;
+  urlLabelDefault?: string;
+  icon?: string | { light: string; dark: string };
+  letterIcon?: string;
+}[] = [
   { id: 'codex', titleKey: 'auth_login.codex_oauth_title', hintKey: 'auth_login.codex_oauth_hint', urlLabelKey: 'auth_login.codex_oauth_url_label', icon: iconCodex },
   { id: 'anthropic', titleKey: 'auth_login.anthropic_oauth_title', hintKey: 'auth_login.anthropic_oauth_hint', urlLabelKey: 'auth_login.anthropic_oauth_url_label', icon: iconClaude },
   { id: 'antigravity', titleKey: 'auth_login.antigravity_oauth_title', hintKey: 'auth_login.antigravity_oauth_hint', urlLabelKey: 'auth_login.antigravity_oauth_url_label', icon: iconAntigravity },
   { id: 'gemini-cli', titleKey: 'auth_login.gemini_cli_oauth_title', hintKey: 'auth_login.gemini_cli_oauth_hint', urlLabelKey: 'auth_login.gemini_cli_oauth_url_label', icon: iconGemini },
-  { id: 'kimi', titleKey: 'auth_login.kimi_oauth_title', hintKey: 'auth_login.kimi_oauth_hint', urlLabelKey: 'auth_login.kimi_oauth_url_label', icon: { light: iconKimiLight, dark: iconKimiDark } }
+  { id: 'kimi', titleKey: 'auth_login.kimi_oauth_title', hintKey: 'auth_login.kimi_oauth_hint', urlLabelKey: 'auth_login.kimi_oauth_url_label', icon: { light: iconKimiLight, dark: iconKimiDark } },
+  {
+    id: 'kiro',
+    titleKey: 'auth_login.kiro_oauth_title',
+    titleDefault: 'Kiro IAM SSO Login',
+    hintKey: 'auth_login.kiro_oauth_hint',
+    hintDefault: 'Sign in with AWS IAM Identity Center, then paste the callback URL to save a Kiro token.',
+    urlLabelKey: 'auth_login.kiro_oauth_url_label',
+    urlLabelDefault: 'Kiro authorization URL',
+    letterIcon: 'K'
+  }
 ];
 
-const CALLBACK_SUPPORTED: OAuthProvider[] = ['codex', 'anthropic', 'antigravity', 'gemini-cli'];
+const CALLBACK_SUPPORTED: OAuthProvider[] = ['codex', 'anthropic', 'antigravity', 'gemini-cli', 'kiro'];
 const SUCCESS_RESET_DELAY_MS = 5000;
 const getProviderI18nPrefix = (provider: OAuthProvider) => provider.replace('-', '_');
 const getAuthKey = (provider: OAuthProvider, suffix: string) =>
@@ -111,6 +134,25 @@ const DEFAULT_KIRO_FORM: KiroFormState = {
 
 const getIcon = (icon: string | { light: string; dark: string }, theme: 'light' | 'dark') => {
   return typeof icon === 'string' ? icon : icon[theme];
+};
+
+const authTextDefault = (provider: OAuthProvider, suffix: string) => {
+  if (provider !== 'kiro') return undefined;
+  const defaults: Record<string, string> = {
+    oauth_button: 'Start Kiro SSO Login',
+    copy_link: 'Copy link',
+    open_link: 'Open link',
+    oauth_start_error: 'Failed to start Kiro SSO login.',
+    oauth_status_success: 'Kiro token saved.',
+    oauth_status_error: 'Kiro login failed.',
+    oauth_status_waiting: 'Waiting for Kiro callback...'
+  };
+  return defaults[suffix];
+};
+
+const authTextOptions = (provider: OAuthProvider, suffix: string) => {
+  const defaultValue = authTextDefault(provider, suffix);
+  return defaultValue ? { defaultValue } : undefined;
 };
 
 const optionalString = (value: string) => {
@@ -241,6 +283,10 @@ export function OAuthPage() {
       if (provider === 'gemini-cli' && current.projectId !== undefined) {
         next.projectId = current.projectId;
       }
+      if (provider === 'kiro') {
+        next.kiroStartUrl = current.kiroStartUrl;
+        next.kiroRegion = current.kiroRegion;
+      }
       return {
         ...prev,
         [provider]: next
@@ -274,11 +320,14 @@ export function OAuthPage() {
         const res = await oauthApi.getAuthStatus(state);
         if (res.status === 'ok') {
           completeProviderAuth(provider);
-          showNotification(t(getAuthKey(provider, 'oauth_status_success')), 'success');
+          showNotification(
+            t(getAuthKey(provider, 'oauth_status_success'), authTextOptions(provider, 'oauth_status_success')),
+            'success'
+          );
         } else if (res.status === 'error') {
           updateProviderState(provider, { status: 'error', error: res.error, polling: false });
           showNotification(
-            `${t(getAuthKey(provider, 'oauth_status_error'))} ${res.error || ''}`,
+            `${t(getAuthKey(provider, 'oauth_status_error'), authTextOptions(provider, 'oauth_status_error'))} ${res.error || ''}`,
             'error'
           );
           window.clearInterval(timer);
@@ -296,15 +345,29 @@ export function OAuthPage() {
   const startAuth = async (provider: OAuthProvider) => {
     clearProviderTimers(provider);
     const geminiState = provider === 'gemini-cli' ? states[provider] : undefined;
+    const kiroState = provider === 'kiro' ? states[provider] : undefined;
     const rawProjectId = provider === 'gemini-cli' ? (geminiState?.projectId || '').trim() : '';
     const projectId = rawProjectId
       ? rawProjectId.toUpperCase() === 'ALL'
         ? 'ALL'
         : rawProjectId
       : undefined;
+    const kiroStartUrl = provider === 'kiro' ? (kiroState?.kiroStartUrl || '').trim() : '';
+    const kiroRegion = provider === 'kiro' ? (kiroState?.kiroRegion || 'us-east-1').trim() : undefined;
     // Project ID is optional: blank selects the first available project; ALL fetches every project.
     if (provider === 'gemini-cli') {
       updateProviderState(provider, { projectIdError: undefined });
+    }
+    if (provider === 'kiro') {
+      if (!kiroStartUrl) {
+        updateProviderState(provider, {
+          kiroStartUrlError: t('auth_login.kiro_start_url_required', {
+            defaultValue: 'SSO Start URL is required'
+          })
+        });
+        return;
+      }
+      updateProviderState(provider, { kiroStartUrlError: undefined });
     }
     updateProviderState(provider, {
       url: undefined,
@@ -319,7 +382,11 @@ export function OAuthPage() {
     try {
       const res = await oauthApi.startAuth(
         provider,
-        provider === 'gemini-cli' ? { projectId: projectId || undefined } : undefined
+        provider === 'gemini-cli'
+          ? { projectId: projectId || undefined }
+          : provider === 'kiro'
+            ? { startUrl: kiroStartUrl, region: kiroRegion || undefined }
+            : undefined
       );
       if (!res.state) {
         const message = t('auth_login.missing_state');
@@ -339,7 +406,9 @@ export function OAuthPage() {
       const message = getErrorMessage(err);
       updateProviderState(provider, { status: 'error', error: message, polling: false });
       showNotification(
-        `${t(getAuthKey(provider, 'oauth_start_error'))}${message ? ` ${message}` : ''}`,
+        `${t(getAuthKey(provider, 'oauth_start_error'), {
+          defaultValue: authTextDefault(provider, 'oauth_start_error')
+        })}${message ? ` ${message}` : ''}`,
         'error'
       );
     }
@@ -622,7 +691,7 @@ export function OAuthPage() {
           const loginButtonLabel =
             state.status === 'success'
               ? t('auth_login.login_another_account')
-              : t(getAuthKey(provider.id, 'oauth_button'));
+              : t(getAuthKey(provider.id, 'oauth_button'), authTextOptions(provider.id, 'oauth_button'));
           const statusBadgeClassName = [
             'status-badge',
             state.status === 'success' ? 'success' : '',
@@ -635,12 +704,18 @@ export function OAuthPage() {
               <Card
                 title={
                   <span className={styles.cardTitle}>
-                    <img
-                      src={getIcon(provider.icon, resolvedTheme)}
-                      alt=""
-                      className={styles.cardTitleIcon}
-                    />
-                    {t(provider.titleKey)}
+                    {provider.icon ? (
+                      <img
+                        src={getIcon(provider.icon, resolvedTheme)}
+                        alt=""
+                        className={styles.cardTitleIcon}
+                      />
+                    ) : (
+                      <span className={styles.kiroIcon} aria-hidden="true">
+                        {provider.letterIcon}
+                      </span>
+                    )}
+                    {t(provider.titleKey, { defaultValue: provider.titleDefault })}
                   </span>
                 }
                 extra={
@@ -650,7 +725,7 @@ export function OAuthPage() {
                 }
               >
                 <div className={styles.cardContent}>
-                  <div className={styles.cardHint}>{t(provider.hintKey)}</div>
+                  <div className={styles.cardHint}>{t(provider.hintKey, { defaultValue: provider.hintDefault })}</div>
                   {provider.id === 'gemini-cli' && (
                     <div className={styles.geminiProjectField}>
                       <Input
@@ -669,20 +744,57 @@ export function OAuthPage() {
                       />
                     </div>
                   )}
+                  {provider.id === 'kiro' && (
+                    <div className={styles.kiroOAuthGrid}>
+                      <Input
+                        label={t('auth_login.kiro_start_url_label', {
+                          defaultValue: 'SSO Start URL'
+                        })}
+                        hint={t('auth_login.kiro_start_url_hint', {
+                          defaultValue: 'Use your AWS IAM Identity Center start URL.'
+                        })}
+                        value={state.kiroStartUrl || ''}
+                        error={state.kiroStartUrlError}
+                        disabled={Boolean(state.polling)}
+                        onChange={(e) =>
+                          updateProviderState(provider.id, {
+                            kiroStartUrl: e.target.value,
+                            kiroStartUrlError: undefined
+                          })
+                        }
+                        placeholder="https://my-org.awsapps.com/start"
+                      />
+                      <Input
+                        label={t('auth_login.kiro_region_label', {
+                          defaultValue: 'Region'
+                        })}
+                        value={state.kiroRegion || 'us-east-1'}
+                        disabled={Boolean(state.polling)}
+                        onChange={(e) =>
+                          updateProviderState(provider.id, {
+                            kiroRegion: e.target.value
+                          })
+                        }
+                        placeholder="us-east-1"
+                      />
+                    </div>
+                  )}
                   {state.url && (
                     <div className={styles.authUrlBox}>
-                      <div className={styles.authUrlLabel}>{t(provider.urlLabelKey)}</div>
+                      <div className={styles.authUrlLabel}>
+                        {t(provider.urlLabelKey, { defaultValue: provider.urlLabelDefault })}
+                      </div>
                       <div className={styles.authUrlValue}>{state.url}</div>
                       <div className={styles.authUrlActions}>
                         <Button variant="secondary" size="sm" onClick={() => copyLink(state.url!)}>
-                          {t(getAuthKey(provider.id, 'copy_link'))}
+                          {t(getAuthKey(provider.id, 'copy_link'), authTextOptions(provider.id, 'copy_link'))}
                         </Button>
                         <Button
                           variant="secondary"
                           size="sm"
                           onClick={() => window.open(state.url, '_blank', 'noopener,noreferrer')}
                         >
-                          {t(getAuthKey(provider.id, 'open_link'))}
+                          {t(getAuthKey(provider.id, 'open_link'), authTextOptions(provider.id, 'open_link'))}
                         </Button>
                       </div>
                     </div>
@@ -727,10 +839,10 @@ export function OAuthPage() {
                   {state.status && state.status !== 'idle' && (
                     <div className={statusBadgeClassName}>
                       {state.status === 'success'
-                        ? t(getAuthKey(provider.id, 'oauth_status_success'))
+                        ? t(getAuthKey(provider.id, 'oauth_status_success'), authTextOptions(provider.id, 'oauth_status_success'))
                         : state.status === 'error'
-                          ? `${t(getAuthKey(provider.id, 'oauth_status_error'))} ${state.error || ''}`
-                          : t(getAuthKey(provider.id, 'oauth_status_waiting'))}
+                          ? `${t(getAuthKey(provider.id, 'oauth_status_error'), authTextOptions(provider.id, 'oauth_status_error'))} ${state.error || ''}`
+                          : t(getAuthKey(provider.id, 'oauth_status_waiting'), authTextOptions(provider.id, 'oauth_status_waiting'))}
                     </div>
                   )}
                   {state.status === 'success' && (

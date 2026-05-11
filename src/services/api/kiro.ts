@@ -9,6 +9,9 @@ export interface KiroTokenImportRequest {
   auth_method: KiroAuthMethod;
   provider?: string;
   region: string;
+  start_url?: string;
+  client_id?: string;
+  client_secret?: string;
   profile_arn?: string;
   expires_at?: number;
   machine_id?: string;
@@ -19,6 +22,7 @@ export interface KiroTokenSummary {
   auth_method: KiroAuthMethod;
   provider?: string;
   region: string;
+  start_url?: string;
   expires_at?: number;
   is_expired?: boolean;
   needs_refresh?: boolean;

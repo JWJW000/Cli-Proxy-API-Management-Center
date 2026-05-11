@@ -9,7 +9,8 @@ export type OAuthProvider =
   | 'anthropic'
   | 'antigravity'
   | 'gemini-cli'
-  | 'kimi';
+  | 'kimi'
+  | 'kiro';
 
 export interface OAuthStartResponse {
   url: string;
@@ -20,19 +21,24 @@ export interface OAuthCallbackResponse {
   status: 'ok';
 }
 
-const WEBUI_SUPPORTED: OAuthProvider[] = ['codex', 'anthropic', 'antigravity', 'gemini-cli'];
+const WEBUI_SUPPORTED: OAuthProvider[] = ['codex', 'anthropic', 'antigravity', 'gemini-cli', 'kiro'];
 const CALLBACK_PROVIDER_MAP: Partial<Record<OAuthProvider, string>> = {
-  'gemini-cli': 'gemini'
+  'gemini-cli': 'gemini',
+  kiro: 'kiro'
 };
 
 export const oauthApi = {
-  startAuth: (provider: OAuthProvider, options?: { projectId?: string }) => {
+  startAuth: (provider: OAuthProvider, options?: { projectId?: string; startUrl?: string; region?: string }) => {
     const params: Record<string, string | boolean> = {};
     if (WEBUI_SUPPORTED.includes(provider)) {
       params.is_webui = true;
     }
     if (provider === 'gemini-cli' && options?.projectId) {
       params.project_id = options.projectId;
+    }
+    if (provider === 'kiro') {
+      if (options?.startUrl) params.start_url = options.startUrl;
+      if (options?.region) params.region = options.region;
     }
     return apiClient.get<OAuthStartResponse>(`/${provider}-auth-url`, {
       params: Object.keys(params).length ? params : undefined
