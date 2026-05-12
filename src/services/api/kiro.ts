@@ -50,8 +50,18 @@ export interface KiroTokenImportResponse {
 export interface KiroTokenTestResponse {
   message?: string;
   email: string;
+  model?: string;
+  model_tested?: boolean;
   is_expired?: boolean;
   needs_refresh?: boolean;
+  response_preview?: string;
+}
+
+export interface KiroModelDefinition {
+  id: string;
+  display_name?: string;
+  type?: string;
+  owned_by?: string;
 }
 
 export const kiroApi = {
@@ -65,9 +75,16 @@ export const kiroApi = {
       params: { email }
     }),
 
-  testToken: (email: string) =>
+  listModels: async () => {
+    const data = await apiClient.get<Record<string, unknown>>('/model-definitions/kiro');
+    const models = data.models ?? data['models'];
+    return Array.isArray(models) ? (models as KiroModelDefinition[]) : [];
+  },
+
+  testToken: (email: string, model?: string) =>
     apiClient.post<KiroTokenTestResponse>('/auth/kiro/test', {
-      email
+      email,
+      ...(model ? { model } : {})
     }),
 
   deleteToken: (email: string) =>

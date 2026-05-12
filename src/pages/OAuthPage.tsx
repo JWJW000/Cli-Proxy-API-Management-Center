@@ -10,6 +10,7 @@ import { vertexApi, type VertexImportResponse } from '@/services/api/vertex';
 import {
   kiroApi,
   type KiroAuthMethod,
+  type KiroModelDefinition,
   type KiroTokenImportRequest,
   type KiroTokenInfo,
   type KiroTokenSummary,
@@ -134,6 +135,17 @@ const DEFAULT_KIRO_FORM: KiroFormState = {
   jsonDraft: ''
 };
 
+const FALLBACK_KIRO_MODELS: KiroModelDefinition[] = [
+  { id: 'claude-sonnet-4.5', display_name: 'Claude Sonnet 4.5 (Kiro)' },
+  { id: 'claude-haiku-4.5', display_name: 'Claude Haiku 4.5 (Kiro)' },
+  { id: 'claude-opus-4.5', display_name: 'Claude Opus 4.5 (Kiro)' },
+  { id: 'claude-opus-4-5', display_name: 'Claude Opus 4.5 (Kiro)' },
+  { id: 'claude-opus-4-6', display_name: 'Claude Opus 4.6 (Kiro)' },
+  { id: 'claude-opus-4-7', display_name: 'Claude Opus 4.7 (Kiro)' },
+  { id: 'claude-sonnet-4', display_name: 'Claude Sonnet 4 (Kiro)' },
+  { id: 'claude-sonnet-4-6', display_name: 'Claude Sonnet 4.6 (Kiro)' }
+];
+
 const getIcon = (icon: string | { light: string; dark: string }, theme: 'light' | 'dark') => {
   return typeof icon === 'string' ? icon : icon[theme];
 };
@@ -194,6 +206,8 @@ export function OAuthPage() {
   const [kiroActionEmail, setKiroActionEmail] = useState<string | null>(null);
   const [kiroInfo, setKiroInfo] = useState<KiroTokenInfo | null>(null);
   const [kiroTestResult, setKiroTestResult] = useState<KiroTokenTestResponse | null>(null);
+  const [kiroModels, setKiroModels] = useState<KiroModelDefinition[]>(FALLBACK_KIRO_MODELS);
+  const [kiroTestModels, setKiroTestModels] = useState<Record<string, string>>({});
   const pollingTimers = useRef<Partial<Record<OAuthProvider, number>>>({});
   const successResetTimers = useRef<Partial<Record<OAuthProvider, number>>>({});
   const vertexFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -247,6 +261,14 @@ export function OAuthPage() {
 
   useEffect(() => {
     void loadKiroTokens(true);
+    kiroApi
+      .listModels()
+      .then((models) => {
+        if (models.length > 0) setKiroModels(models);
+      })
+      .catch(() => {
+        setKiroModels(FALLBACK_KIRO_MODELS);
+      });
   }, [loadKiroTokens]);
 
   const updateProviderState = (provider: OAuthProvider, next: Partial<ProviderState>) => {
@@ -660,12 +682,17 @@ export function OAuthPage() {
     }
   };
 
-  const testKiroToken = async (email: string) => {
+  const testKiroToken = async (email: string, model?: string) => {
     setKiroActionEmail(email);
     try {
-      const result = await kiroApi.testToken(email);
+      const result = await kiroApi.testToken(email, model);
       setKiroTestResult(result);
-      showNotification(tk('test_success', 'Kiro token structure is valid'), 'success');
+      showNotification(
+        model
+          ? tk('model_test_success', 'Kiro model test succeeded')
+          : tk('test_success', 'Kiro token structure is valid'),
+        'success'
+      );
     } catch (err: unknown) {
       const message = getErrorMessage(err);
       showNotification(
@@ -1091,6 +1118,30 @@ export function OAuthPage() {
                       >
                         {tk('test_button', 'Test')}
                       </Button>
+                      <select
+                        className={`input ${styles.kiroModelSelect}`}
+                        value={kiroTestModels[token.email] || kiroModels[0]?.id || ''}
+                        onChange={(e) =>
+                          setKiroTestModels((prev) => ({
+                            ...prev,
+                            [token.email]: e.target.value
+                          }))
+                        }
+                      >
+                        {kiroModels.map((model) => (
+                          <option key={model.id} value={model.id}>
+                            {model.display_name ? `${model.display_name} / ${model.id}` : model.id}
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => testKiroToken(token.email, kiroTestModels[token.email] || kiroModels[0]?.id)}
+                        loading={kiroActionEmail === token.email}
+                      >
+                        {tk('test_model_button', 'Test model')}
+                      </Button>
                       <Button variant="danger" size="sm" onClick={() => deleteKiroToken(token.email)}>
                         {t('common.delete')}
                       </Button>
@@ -1119,8 +1170,22 @@ export function OAuthPage() {
                     )}
 
                     {kiroTestResult?.email === token.email && (
-                      <div className="status-badge success">
-                        {kiroTestResult.message || tk('test_success', 'Kiro token structure is valid')}
+                      <div className={styles.connectionBox}>
+                        <div className="status-badge success">
+                          {kiroTestResult.message || tk('test_success', 'Kiro token structure is valid')}
+                        </div>
+                        {kiroTestResult.model_tested && (
+                          <div className={styles.keyValueList}>
+                            <div className={styles.keyValueItem}>
+                              <span className={styles.keyValueKey}>{tk('tested_model', 'Model')}</span>
+                              <span className={styles.keyValueValue}>{kiroTestResult.model || '-'}</span>
+                            </div>
+                            <div className={styles.keyValueItem}>
+                              <span className={styles.keyValueKey}>{tk('response_preview', 'Response')}</span>
+                              <span className={styles.keyValueValue}>{kiroTestResult.response_preview || '-'}</span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

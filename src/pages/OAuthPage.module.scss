@@ -172,6 +172,16 @@
   gap: $spacing-sm;
 }
 
+.kiroModelSelect {
+  width: min(100%, 360px);
+  min-width: 260px;
+
+  @include mobile {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
 .kiroFormGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
