@@ -57,6 +57,26 @@ export interface KiroTokenTestResponse {
   response_preview?: string;
 }
 
+export interface KiroQuotaResponse {
+  email?: string;
+  auth_method?: string;
+  provider?: string;
+  region?: string;
+  profile_arn?: string;
+  expires_at?: number;
+  is_expired?: boolean;
+  needs_refresh?: boolean;
+  has_refresh_token?: boolean;
+  quota_available?: boolean;
+  source?: string;
+  message?: string;
+  limit_credits?: number;
+  used_credits?: number;
+  remaining_credits?: number;
+  reset_at?: string;
+  updated_at?: number;
+}
+
 export interface KiroModelDefinition {
   id: string;
   display_name?: string;
@@ -85,6 +105,11 @@ export const kiroApi = {
     apiClient.post<KiroTokenTestResponse>('/auth/kiro/test', {
       email,
       ...(model ? { model } : {})
+    }),
+
+  getQuota: (email: string) =>
+    apiClient.get<KiroQuotaResponse>('/auth/kiro/quota', {
+      params: { email }
     }),
 
   deleteToken: (email: string) =>

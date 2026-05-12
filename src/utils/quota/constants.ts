@@ -8,7 +8,7 @@ import type {
   TypeColorSet,
 } from '@/types';
 
-// Theme colors for type badges — 与 authFiles/constants.ts 保持同步
+// Theme colors for type badges. Keep in sync with authFiles/constants.ts.
 export const TYPE_COLORS: Record<string, TypeColorSet> = {
   qwen: {
     light: { bg: '#ede5fd', text: '#5530c7' },
@@ -37,6 +37,10 @@ export const TYPE_COLORS: Record<string, TypeColorSet> = {
   kimi: {
     light: { bg: '#dce8ff', text: '#0560cf' },
     dark: { bg: '#003880', text: '#70b5ff' },
+  },
+  kiro: {
+    light: { bg: '#e7f0ff', text: '#2854a3' },
+    dark: { bg: '#172b5f', text: '#9dbdff' },
   },
   antigravity: {
     light: { bg: '#e0f7fa', text: '#006064' },

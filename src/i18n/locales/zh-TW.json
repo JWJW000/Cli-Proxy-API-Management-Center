@@ -540,6 +540,7 @@
     "filter_claude": "Claude",
     "filter_codex": "Codex",
     "filter_antigravity": "Antigravity",
+    "filter_kiro": "Kiro",
     "filter_iflow": "iFlow",
     "filter_vertex": "Vertex",
     "filter_empty": "空檔案",
@@ -720,6 +721,23 @@
     "limit_window": "{{duration}} 限額",
     "limit_index": "限額 #{{index}}",
     "reset_hint": "{{hint}} 後重置"
+  },
+  "kiro_quota": {
+    "title": "Kiro 額度",
+    "empty_title": "暫無 Kiro 認證",
+    "empty_desc": "使用 Kiro OAuth 登入後即可查看本機 Kiro 額度資料。",
+    "idle": "點擊此處重新整理額度",
+    "loading": "正在載入額度...",
+    "load_failed": "額度取得失敗：{{message}}",
+    "missing_email": "Kiro 憑證缺少信箱",
+    "empty_data": "暫無 Kiro 額度資料。請先在 Kiro 中執行 /usage，再重新整理此卡片。",
+    "account_label": "帳號",
+    "credit_label": "Kiro 點數",
+    "remaining_amount": "剩餘 {{count}} 點數",
+    "used_amount": "已用 {{count}} 點數",
+    "credit_amount_with_limit": "{{remaining}} / {{limit}} 點數",
+    "token_expired": "Token 已過期",
+    "token_needs_refresh": "Token 需要重新整理"
   },
   "vertex_import": {
     "title": "Vertex JSON 登入",

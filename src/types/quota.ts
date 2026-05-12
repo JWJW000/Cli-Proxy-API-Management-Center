@@ -306,3 +306,44 @@ export interface KimiQuotaState {
   error?: string;
   errorStatus?: number;
 }
+
+export interface KiroQuotaPayload {
+  email?: string;
+  auth_method?: string;
+  provider?: string;
+  region?: string;
+  profile_arn?: string;
+  expires_at?: number;
+  is_expired?: boolean;
+  needs_refresh?: boolean;
+  has_refresh_token?: boolean;
+  quota_available?: boolean;
+  source?: string;
+  message?: string;
+  limit_credits?: number;
+  used_credits?: number;
+  remaining_credits?: number;
+  reset_at?: string;
+  updated_at?: number;
+}
+
+export interface KiroQuotaState {
+  status: 'idle' | 'loading' | 'success' | 'error';
+  email?: string;
+  authMethod?: string;
+  provider?: string;
+  region?: string;
+  isExpired?: boolean;
+  needsRefresh?: boolean;
+  hasRefreshToken?: boolean;
+  quotaAvailable?: boolean;
+  source?: string;
+  message?: string;
+  limitCredits?: number | null;
+  usedCredits?: number | null;
+  remainingCredits?: number | null;
+  resetAt?: string;
+  updatedAt?: number;
+  error?: string;
+  errorStatus?: number;
+}

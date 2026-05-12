@@ -1,6 +1,6 @@
 /**
- * 认证文件相关类型
- * 基于原项目 src/modules/auth-files.js
+ * Auth file related types.
+ * Based on the original src/modules/auth-files.js module.
  */
 
 import type { RecentRequestBucket } from '@/utils/recentRequests';
@@ -13,6 +13,7 @@ export type AuthFileType =
   | 'aistudio'
   | 'claude'
   | 'codex'
+  | 'kiro'
   | 'antigravity'
   | 'iflow'
   | 'vertex'

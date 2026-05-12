@@ -28,8 +28,10 @@ import type {
   GeminiCliUserTier,
   KimiQuotaRow,
   KimiQuotaState,
+  KiroQuotaPayload,
+  KiroQuotaState,
 } from '@/types';
-import { apiCallApi, authFilesApi, getApiCallErrorMessage } from '@/services/api';
+import { apiCallApi, authFilesApi, getApiCallErrorMessage, kiroApi } from '@/services/api';
 import { useQuotaStore } from '@/stores';
 import {
   ANTIGRAVITY_QUOTA_URLS,
@@ -73,6 +75,7 @@ import {
   isDisabledAuthFile,
   isGeminiCliFile,
   isKimiFile,
+  isKiroFile,
   isRuntimeOnlyAuthFile,
 } from '@/utils/quota';
 import { normalizeAuthIndex } from '@/utils/authIndex';
@@ -81,7 +84,7 @@ import styles from '@/pages/QuotaPage.module.scss';
 
 type QuotaUpdater<T> = T | ((prev: T) => T);
 
-type QuotaType = 'antigravity' | 'claude' | 'codex' | 'gemini-cli' | 'kimi';
+type QuotaType = 'antigravity' | 'claude' | 'codex' | 'gemini-cli' | 'kimi' | 'kiro';
 
 const DEFAULT_ANTIGRAVITY_PROJECT_ID = 'bamboo-precept-lgxtn';
 const QUOTA_PROGRESS_HIGH_THRESHOLD = 70;
@@ -98,11 +101,13 @@ export interface QuotaStore {
   codexQuota: Record<string, CodexQuotaState>;
   geminiCliQuota: Record<string, GeminiCliQuotaState>;
   kimiQuota: Record<string, KimiQuotaState>;
+  kiroQuota: Record<string, KiroQuotaState>;
   setAntigravityQuota: (updater: QuotaUpdater<Record<string, AntigravityQuotaState>>) => void;
   setClaudeQuota: (updater: QuotaUpdater<Record<string, ClaudeQuotaState>>) => void;
   setCodexQuota: (updater: QuotaUpdater<Record<string, CodexQuotaState>>) => void;
   setGeminiCliQuota: (updater: QuotaUpdater<Record<string, GeminiCliQuotaState>>) => void;
   setKimiQuota: (updater: QuotaUpdater<Record<string, KimiQuotaState>>) => void;
+  setKiroQuota: (updater: QuotaUpdater<Record<string, KiroQuotaState>>) => void;
   clearQuotaCache: () => void;
 }
 
@@ -1351,4 +1356,158 @@ export const KIMI_CONFIG: QuotaConfig<KimiQuotaState, KimiQuotaRow[]> = {
   controlClassName: styles.kimiControl,
   gridClassName: styles.kimiGrid,
   renderQuotaItems: renderKimiItems,
+};
+
+const resolveKiroEmail = (file: AuthFileItem): string | null => {
+  const metadata =
+    file.metadata && typeof file.metadata === 'object' && file.metadata !== null
+      ? (file.metadata as Record<string, unknown>)
+      : null;
+  const candidates = [
+    file.email,
+    metadata?.email,
+    file.name.replace(/^kiro-/, '').replace(/\.json$/i, ''),
+  ];
+
+  for (const candidate of candidates) {
+    const email = normalizeStringValue(candidate);
+    if (email) return email;
+  }
+  return null;
+};
+
+const fetchKiroQuota = async (
+  file: AuthFileItem,
+  t: TFunction
+): Promise<KiroQuotaPayload> => {
+  const email = resolveKiroEmail(file);
+  if (!email) {
+    throw new Error(t('kiro_quota.missing_email'));
+  }
+  return kiroApi.getQuota(email);
+};
+
+const renderKiroItems = (
+  quota: KiroQuotaState,
+  t: TFunction,
+  helpers: QuotaRenderHelpers
+): ReactNode => {
+  const { styles: styleMap, QuotaProgressBar } = helpers;
+  const { createElement: h, Fragment } = React;
+  const nodes: ReactNode[] = [];
+  const limit = quota.limitCredits ?? null;
+  const remaining = quota.remainingCredits ?? null;
+  const used = quota.usedCredits ?? null;
+  const percent =
+    limit !== null && limit > 0 && remaining !== null
+      ? Math.max(0, Math.min(100, Math.round((remaining / limit) * 100)))
+      : null;
+  const amountLabel =
+    remaining !== null && limit !== null
+      ? t('kiro_quota.credit_amount_with_limit', { remaining, limit })
+      : remaining !== null
+        ? t('kiro_quota.remaining_amount', { count: remaining })
+        : used !== null
+          ? t('kiro_quota.used_amount', { count: used })
+          : null;
+
+  if (quota.authMethod || quota.region) {
+    const summary = [quota.authMethod, quota.region].filter(Boolean).join(' / ');
+    nodes.push(
+      h(
+        'div',
+        { key: 'account', className: styleMap.codexPlan },
+        h('span', { className: styleMap.codexPlanLabel }, t('kiro_quota.account_label')),
+        h('span', { className: styleMap.codexPlanValue }, summary || quota.email || '-')
+      )
+    );
+  }
+
+  if (quota.isExpired || quota.needsRefresh) {
+    nodes.push(
+      h(
+        'div',
+        { key: 'token-warning', className: styleMap.quotaWarning },
+        quota.isExpired ? t('kiro_quota.token_expired') : t('kiro_quota.token_needs_refresh')
+      )
+    );
+  }
+
+  if (!quota.quotaAvailable) {
+    nodes.push(
+      h(
+        'div',
+        { key: 'empty', className: styleMap.quotaMessage },
+        quota.message || t('kiro_quota.empty_data')
+      )
+    );
+    return h(Fragment, null, ...nodes);
+  }
+
+  nodes.push(
+    h(
+      'div',
+      { key: 'credits', className: styleMap.quotaRow },
+      h(
+        'div',
+        { className: styleMap.quotaRowHeader },
+        h('span', { className: styleMap.quotaModel }, t('kiro_quota.credit_label')),
+        h(
+          'div',
+          { className: styleMap.quotaMeta },
+          percent !== null ? h('span', { className: styleMap.quotaPercent }, `${percent}%`) : null,
+          amountLabel ? h('span', { className: styleMap.quotaAmount }, amountLabel) : null,
+          quota.resetAt
+            ? h('span', { className: styleMap.quotaReset }, formatQuotaResetTime(quota.resetAt))
+            : null
+        )
+      ),
+      h(QuotaProgressBar, {
+        percent,
+        highThreshold: QUOTA_PROGRESS_HIGH_THRESHOLD,
+        mediumThreshold: QUOTA_PROGRESS_MEDIUM_THRESHOLD,
+      })
+    )
+  );
+
+  return h(Fragment, null, ...nodes);
+};
+
+export const KIRO_CONFIG: QuotaConfig<KiroQuotaState, KiroQuotaPayload> = {
+  type: 'kiro',
+  i18nPrefix: 'kiro_quota',
+  cardIdleMessageKey: 'quota_management.card_idle_hint',
+  filterFn: (file) => isKiroFile(file) && !isDisabledAuthFile(file),
+  fetchQuota: fetchKiroQuota,
+  storeSelector: (state) => state.kiroQuota,
+  storeSetter: 'setKiroQuota',
+  buildLoadingState: () => ({ status: 'loading' }),
+  buildSuccessState: (data) => ({
+    status: 'success',
+    email: data.email,
+    authMethod: data.auth_method,
+    provider: data.provider,
+    region: data.region,
+    isExpired: data.is_expired,
+    needsRefresh: data.needs_refresh,
+    hasRefreshToken: data.has_refresh_token,
+    quotaAvailable: data.quota_available,
+    source: data.source,
+    message: data.message,
+    limitCredits: data.limit_credits ?? null,
+    usedCredits: data.used_credits ?? null,
+    remainingCredits: data.remaining_credits ?? null,
+    resetAt: data.reset_at,
+    updatedAt: data.updated_at,
+  }),
+  buildErrorState: (message, status) => ({
+    status: 'error',
+    error: message,
+    errorStatus: status,
+  }),
+  cardClassName: styles.kiroCard,
+  controlsClassName: styles.kiroControls,
+  controlClassName: styles.kiroControl,
+  gridClassName: styles.kiroGrid,
+  renderQuotaItems: renderKiroItems,
 };

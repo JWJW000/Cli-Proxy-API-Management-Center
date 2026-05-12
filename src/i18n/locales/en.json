@@ -540,6 +540,7 @@
     "filter_claude": "Claude",
     "filter_codex": "Codex",
     "filter_antigravity": "Antigravity",
+    "filter_kiro": "Kiro",
     "filter_iflow": "iFlow",
     "filter_vertex": "Vertex",
     "filter_empty": "Empty",
@@ -720,6 +721,23 @@
     "limit_window": "{{duration}} limit",
     "limit_index": "Limit #{{index}}",
     "reset_hint": "resets in {{hint}}"
+  },
+  "kiro_quota": {
+    "title": "Kiro Quota",
+    "empty_title": "No Kiro Auth Files",
+    "empty_desc": "Log in with Kiro OAuth to view local Kiro quota data.",
+    "idle": "Click here to refresh quota",
+    "loading": "Loading quota...",
+    "load_failed": "Failed to load quota: {{message}}",
+    "missing_email": "Kiro credential missing email",
+    "empty_data": "No Kiro quota data available. Open Kiro and run /usage once, then refresh this card.",
+    "account_label": "Account",
+    "credit_label": "Kiro credits",
+    "remaining_amount": "Remaining {{count}} credits",
+    "used_amount": "Used {{count}} credits",
+    "credit_amount_with_limit": "{{remaining}} / {{limit}} credits",
+    "token_expired": "Token expired",
+    "token_needs_refresh": "Token needs refresh"
   },
   "vertex_import": {
     "title": "Vertex JSON Login",
